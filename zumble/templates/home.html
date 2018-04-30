@@ -36,10 +36,12 @@
                 if (data.join) {
                     console.log("Joining room " + data.join);
                     var roomdiv = $(
-                            "<div class='room' id='room-" + data.join + "'>" +
-                            "<h2>" + data.title + "</h2><br/><br/>" +
+                            "<div style='background-color: white;' class='room row' id='room-" + data.join + "'>" +
+                            "<div style='padding: 5px; padding-left: 400px; font-size: 16px;'>" +
+                            data.title + "</div><br/>" +
+                            "<span class='question'>waiting for next jumbled word..." + "</span>" +
                             "<div class='messages'></div>" +
-                            "<form><input id='answer-input'><button>Send</button></form>" +
+                            "<form><input id='answer-input'></form>" +
                             "</div>"
                     );
                     // Hook up send button to send a message
@@ -50,6 +52,9 @@
                             "message": roomdiv.find("input").val()
                         }));
                         roomdiv.find("input").val("");
+
+                        // focus on input
+                        $("#answer-input").focus();
                         return false;
                     });
 
@@ -72,12 +77,33 @@
                     // msg types are defined in chat/settings.py
                     // Only for demo purposes is hardcoded, in production scenarios, consider call a service.
                     switch (data.msg_type) {
+                        case 102:
+                            $(".question").text(data.message);
+                            msgdiv.empty();
+                            break;
                         case 0:
                         case 6:
+                        case 106:
                             // Message
                             ok_msg = "<div class='message'>" +
-                                    {#"<span class='username'>" + data.username + "</span>" +#}
-                                    "<span class='body'>" + data.message + "</span>" +
+                                    // "<span class='username'>" + data.username + "</span>" +
+                                    "<span class='answer_echo'>" + data.message + "</span>" +
+                                    "</div>";
+                            break;
+                        case 103:
+                            // Message
+                            ok_msg = "<div class='message'>" +
+                                    // "<span class='username'>" + data.username + "</span>" +
+                                    "<span class='answer_correct'>" + data.message + "</span>" +
+                                    "</div>";
+                            // msgdiv.empty();
+                            $('.question').text("waiting for next jumbled word...");
+                            break;
+                        case 104:
+                            // Message
+                            ok_msg = "<div class='message'>" +
+                                    // "<span class='username'>" + data.username + "</span>" +
+                                    "<span class='answer_error'>" + data.message + "</span>" +
                                     "</div>";
                             break;
                         case 1:

@@ -4,6 +4,8 @@ from django.db import models
 from django.contrib.postgres.fields import JSONField
 from django.contrib.auth.models import User
 from django.db.models import ObjectDoesNotExist
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 
 from chat.words import words
 
@@ -26,6 +28,8 @@ class Room(BaseModel):
     e.g. {1:10, 2:6, 3:4}
     """
 
+    current_question = models.ForeignKey('Question', null=True, on_delete=models.SET_NULL, related_name='current_question')
+
     is_live = models.BooleanField(default=True)
     players = models.IntegerField(default=0)
     timeout = models.IntegerField(default=10)
@@ -42,6 +46,21 @@ class Room(BaseModel):
         question = Question(room=self, word=word, jumble=jumble)
         question.save()
         return question
+
+    def publish_new_question(self):
+        question = self.new_question()
+        self.current_question = question
+        self.save()
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            self.name, {
+                'type': 'chat.message',
+                'room_id': self.id,
+                'message': question.jumble,
+                'username': 'jumble',
+                'message_type': 102
+            }
+        )
 
     def __str__(self):
         return self.name

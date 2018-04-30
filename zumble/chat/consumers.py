@@ -15,6 +15,12 @@ MSG_TYPE_MUTED = 3  # For just OK information that doesn't bother users
 MSG_TYPE_ENTER = 4  # For just OK information that doesn't bother users
 MSG_TYPE_LEAVE = 5  # For just OK information that doesn't bother users
 
+MSG_SERVER_QUESTION = 102
+MSG_SERVER_RIGHT_ANSWER_SELF = 103
+MSG_SERVER_WRONG_ANSWER = 104
+MSG_SERVER_RIGHT_ANSWER_OTHER = 105
+MSG_SERVER_ANSWER_ECHO = 106
+
 MESSAGE_TYPES_CHOICES = (
     (MSG_TYPE_MESSAGE, 'MESSAGE'),
     (MSG_TYPE_WARNING, 'WARNING'),
@@ -47,14 +53,51 @@ class AnswerConsumer(AsyncJsonWebsocketConsumer):
     async def receive_json(self, content, **kwargs):
         command = content.get('command', None)
         try:
+            room_id = content['room']
             if command == 'join':
                 await self.join_room(content['room'])
             elif command == 'leave':
                 await self.leave_room(content['room'])
             elif command == 'send':
-                await self.send_room(content['room'], content['message'], MSG_TYPE_MESSAGE)
+
+                await self.send_json(
+                    {
+                        "msg_type": MSG_SERVER_ANSWER_ECHO,
+                        "room": room_id,
+                        "username": 'jumble',
+                        "message": content['message'],
+                    },
+                )
+
+                room = Room.objects.get(pk=room_id)
+                print(room)
+
+                if room.current_question.word == content['message']:
+                    await self.send_json(
+                        {
+                            "msg_type": MSG_SERVER_RIGHT_ANSWER_SELF,
+                            "room": room_id,
+                            "username": 'jumble',
+                            "message": "right",
+                        },
+                    )
+
+                    # send update to room that someone took position p
+
+                else:
+                    await self.send_json(
+                        {
+                            "msg_type": MSG_SERVER_WRONG_ANSWER,
+                            "room": room_id,
+                            "username": 'jumble',
+                            "message": "wrong",
+                        },
+                    )
+
+                # await self.send_room(content['room'], content['message'], MSG_TYPE_MESSAGE)
         except Exception as e:
-            await self.send_json({'error': e.message})
+            print(e)
+            await self.send_json({'error': str(e)})
 
     async def disconnect(self, code):
         for room_id in list(self.rooms):
