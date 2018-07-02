@@ -1,20 +1,56 @@
 {% extends "base.html" %} 
 
 {% block main_content %}
-    <ul class="rooms">
-        {% for room in rooms %}
-            <li class="room-link" data-room-id="{{ room.id }}">{{ room }}</li>
-        {% empty %}
-            <p class="empty">No chat rooms defined. Maybe make some in the <a href="{% url 'admin:index' %}">admin</a>?</p>
-        {% endfor %}
-    </ul>
 
-    <div id="chats">
+    <!--<ul class="rooms">-->
+        <!--{% for room in rooms %}-->
+            <!--<li class="room-link" data-room-id="{{ room.id }}">{{ room }}</li>-->
+        <!--{% empty %}-->
+            <!--<p class="empty">No chat rooms defined. Maybe make some in the <a href="{% url 'admin:index' %}">admin</a>?</p>-->
+        <!--{% endfor %}-->
+    <!--</ul>-->
+
+    <div class="row">
+        <div class="col-lg-offset-1 col-lg-8" style="margin-top: 20px; margin-left: 400px;">
+            <button class="btn btn-lg btn-info room-link" data-room-id="2">
+                Enter The Game
+            </button>
+        </div>
     </div>
+
+    <progress style="width: 500px; height: 20px; background-color: lightslategrey; display: none;" value="0" max="30" id="progressBar"></progress>
+    <br/>
+    <span id="seconds_left" style="color: brown; display: none; font-size: 24px;">30 seconds left</span>
+
+    <div class="row">
+            <div id="chats" class="col-lg-5">
+            </div>
+
+            <div id="result" class="col-lg-offset-1 col-lg-5">
+                Top Scorers:
+                <table id="leaderboard">
+                </table>
+
+                <div>
+                My Score: <h3 id="my_score"></h3>
+                </div>
+
+
+            Live Users: <span id="live_users"></span>
+
+            </div>
+
+    </div>
+
+
+
 {% endblock %}
 
 {% block page_javascript %}
     <script>
+
+        var timeleft = 30;
+
         $(function () {
             // Correctly decide between ws:// and wss://
             var ws_scheme = window.location.protocol == "https:" ? "wss" : "ws";
@@ -36,12 +72,11 @@
                 if (data.join) {
                     console.log("Joining room " + data.join);
                     var roomdiv = $(
-                            "<div style='background-color: white;' class='room row' id='room-" + data.join + "'>" +
-                            "<div style='padding: 5px; padding-left: 400px; font-size: 16px;'>" +
-                            data.title + "</div><br/>" +
-                            "<span class='question'>waiting for next jumbled word..." + "</span>" +
+                            "<div style='background-color: white; width: 500px;' class='room row' id='room-" + data.join + "'>" +
+                            "<div style='padding: 5px; padding-left: 400px; font-size: 16px;'>" + "</div><br/>" +
+                            "<span class='question'>waiting for next jumble ..." + "</span>" +
                             "<div class='messages'></div>" +
-                            "<form><input id='answer-input'></form>" +
+                            "<form><input id='answer-input' class='input-lg' style='width: 480px;'></form>" +
                             "</div>"
                     );
                     // Hook up send button to send a message
@@ -80,6 +115,13 @@
                         case 102:
                             $(".question").text(data.message);
                             msgdiv.empty();
+                            timeleft = 30;
+                            $('#seconds_left').text('30 seconds left');
+                            $('#progressBar').css('visibility', 'visible');
+                            $('#seconds_left').css('visibility', 'visible');
+                            refresh_leaderboard(data);
+                            $('#live_users').text(data.live_users)
+                            $('#my_score').text(data.my_score);
                             break;
                         case 0:
                         case 6:
@@ -97,7 +139,11 @@
                                     "<span class='answer_correct'>" + data.message + "</span>" +
                                     "</div>";
                             // msgdiv.empty();
-                            $('.question').text("waiting for next jumbled word...");
+                            $('#progressBar').css('visibility', 'hidden');
+                            $('#seconds_left').css('visibility', 'hidden');
+                            $('.question').text("waiting for next jumble ...");
+                            $('#my_score').text(data.my_score);
+                            refresh_leaderboard(data);
                             break;
                         case 104:
                             // Message
@@ -105,6 +151,17 @@
                                     // "<span class='username'>" + data.username + "</span>" +
                                     "<span class='answer_error'>" + data.message + "</span>" +
                                     "</div>";
+                            break;
+                        case 105:
+                            // Message
+                            ok_msg = "<div class='message'>" +
+                                    // "<span class='username'>" + data.username + "</span>" +
+                                    "<span class='answer_correct_other'>" + data.message + "</span>" +
+                                    "</div>";
+                            $('#progressBar').css('visibility', 'hidden');
+                            $('#seconds_left').css('visibility', 'hidden');
+                            $('.question').text("waiting for next jumble ...");
+                            refresh_leaderboard(data);
                             break;
                         case 1:
                             // Warning / Advice messages
@@ -151,7 +208,7 @@
             };
 
             // Room join/leave
-            $("li.room-link").click(function () {
+            $(".room-link").click(function () {
                 roomId = $(this).attr("data-room-id");
 
                 if (inRoom(roomId)) {
@@ -168,7 +225,22 @@
                         "command": "join",
                         "room": roomId
                     }));
+
+                    var downloadTimer = setInterval(function(){
+                      new_val = 30 - timeleft--;
+                      if (new_val == 30) {
+                          timeleft++;
+                      }
+                      document.getElementById("progressBar").value = new_val;
+                      $('#seconds_left').text(timeleft + ' seconds left');
+                      // if(timeleft <= 0)
+                      //   clearInterval(downloadTimer);
+                    },1000);
+                    $('#progressBar').css('display', 'block');
+                    $('#seconds_left').css('display', 'block');
                 }
+
+                $(this).css('display', 'none');
             });
 
             // Helpful debugging
@@ -178,6 +250,17 @@
             socket.onclose = function () {
                 console.log("Disconnected from chat socket");
             }
+
+            function refresh_leaderboard(data) {
+                leaderboard = data.leaderboard
+                txt = "<thead> <tr> <td>Name</td> <td>Score</td> </tr> </thead><tbody>";
+                for(var i=0;i<leaderboard.length;i++){
+                        txt += "<tr><td>"+leaderboard[i][0]+"</td><td>"+leaderboard[i][1]+"</td></tr>";
+                }
+                txt += "</tbody>"
+                $('#leaderboard').html(txt);
+            }
         });
+
     </script>
 {% endblock %}

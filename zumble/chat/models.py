@@ -1,4 +1,5 @@
 import random
+from time import sleep
 
 from django.db import models
 from django.contrib.postgres.fields import JSONField
@@ -6,6 +7,8 @@ from django.contrib.auth.models import User
 from django.db.models import ObjectDoesNotExist
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+
+from .redis_connect import redis_conn
 
 from chat.words import words
 
@@ -48,9 +51,13 @@ class Room(BaseModel):
         return question
 
     def publish_new_question(self):
+        sleep(3)
         question = self.new_question()
         self.current_question = question
         self.save()
+        redis_conn.set('jumble_question', self.current_question.jumble)
+        redis_conn.set('jumble_answer', self.current_question.word)
+        leaderboard = redis_conn.zrevrange('leaderboard', 0, 10, withscores=True)
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
             self.name, {
@@ -58,9 +65,29 @@ class Room(BaseModel):
                 'room_id': self.id,
                 'message': question.jumble,
                 'username': 'jumble',
-                'message_type': 102
+                'message_type': 102,
+                'leaderboard': leaderboard,
             }
         )
+        return question.jumble
+
+    def user_score_for_user_id(self, user_id):
+        user = User.objects.get(pk=user_id)
+        return self.user_score(user)
+
+    def user_score(self, user):
+        score, created = Score.objects.get_or_create(user=user, room=self)
+        return score.points
+
+    def save_winner(self, user_id):
+        user = User.objects.get(pk=user_id)
+        self.increase_user_score(user, 10)
+        redis_conn.zadd('leaderboard', self.user_score(user=user), user.username)
+
+    def increase_user_score(self, user, increment):
+        score, created = Score.objects.get_or_create(user=user, room=self)
+        score.points += increment
+        score.save()
 
     def __str__(self):
         return self.name

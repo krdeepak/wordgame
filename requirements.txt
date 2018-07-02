@@ -6,4 +6,7 @@ channels_redis
 django-extensions
 psycopg2-binary
 PyDictionary
-
+celery
+jupyter
+flower
+redis

@@ -1,5 +1,11 @@
 from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+
+chanel_layer = get_channel_layer()
 
 async_to_sync(channel_layer.group_send)
 ('easy', {'type': 'chat.message', 'room_id': 1, 'message': ''.join(random.sample(words, 8)), 'username': 'deepak', 'message_type':102})
 
+gs('easy', {'type': 'chat.message', 'room_id': 2, 'message': ''.join(random.sample(words, 8)), 'username': 'deepak', 'message_type':102})
+
+gs('easy', {'type': 'chat.message', 'room_id': 2, 'message': random.sample(words, 1), 'username': 'deepak', 'message_type':102})
